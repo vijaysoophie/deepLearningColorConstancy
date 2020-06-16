@@ -1,12 +1,12 @@
 function makeTargetReflectanceXYZ(XYZLevels,reflectanceNumbers, folderToStore)
 % makeTargetReflectanceXYZ(XYZLevels, reflectanceNumbers, folderToStore)
 %
-% Usage: 
+% Usage:
 %     makeTargetReflectance([0.1 0.1 0.1]', [1:5], 'ExampleFolderName')
 %
 % Description:
 %    This function makes the reflectance spectra for the target objects of
-%    virtual world. The spectrum are generated using the nickerson and the 
+%    virtual world. The spectrum are generated using the nickerson and the
 %    vrhel libraries. These libraries should be a part of
 %    RenderToolbox. To generate the spectra, we first find out the pricipal
 %    components of the spectra in the library. Then we choose the
@@ -15,7 +15,7 @@ function makeTargetReflectanceXYZ(XYZLevels,reflectanceNumbers, folderToStore)
 %    variance of this distribution. These are then used along with a
 %    multinormal random distribution to generate new random spectra. The
 %    new spectra are scaled such that the luminance equals the desired
-%    luminance levels. Finally, we make sure that the reflectance spectra 
+%    luminance levels. Finally, we make sure that the reflectance spectra
 %    values are between 0 and 1 at all frequencies.
 %
 % Input:
@@ -40,7 +40,7 @@ load sur_nickerson
 sur_nickerson = SplineSrf(S_nickerson,sur_nickerson,S);
 
 % Vhrel surfaces
-load sur_vrhel 
+load sur_vrhel
 sur_vrhel = SplineSrf(S_vrhel,sur_vrhel,S);
 
 % Put them together
@@ -86,28 +86,41 @@ for ii = 1:size(XYZLevels,2)
     m=0;
     ww(:,ii) = (theLuminanceSensitivity*diag(theIlluminant)*B)\...
         (XYZLevels(:,ii) - theLuminanceSensitivity*diag(theIlluminant)*sur_mean);
-
+    
     %Generate nReflectance surfaces for this random weight set
-while (m < nsurfacePerXYZ)
-    m=m+1;
-    OK = false;
-    while (~OK)
-        newWeights = ww(:,ii) + nullSpace*(0.95*norm(ww(:,ii)))*rand(3,1);
-        newReflectance = B*newWeights+sur_mean;
-        theLuminanceTarget = XYZLevels(2,ii);
-        if (all(newReflectance(:) >= 0) & all(newReflectance(:) <= 1))
-            newIndex = newIndex+1;
-            newSurfaces(:,newIndex) = newReflectance;
-            OK = true;
+    while (m < nsurfacePerXYZ)
+        m=m+1;
+        OK = false;
+        while (~OK)
+            newWeights = ww(:,ii) + nullSpace*(0.95*norm(ww(:,ii)))*rand(3,1);
+            newReflectance = B*newWeights+sur_mean;
+            theLuminanceTarget = XYZLevels(2,ii);
+            if (all(newReflectance(:) >= 0) & all(newReflectance(:) <= 1))
+                newIndex = newIndex+1;
+                newSurfaces(:,newIndex) = newReflectance;
+                OK = true;
+            end
         end
+        reflectanceName = sprintf('luminance-%.4f-reflectance-%03d.spd', theLuminanceTarget, ...
+            reflectanceNumbers(m));
+        fid = fopen(fullfile(folderToStore,reflectanceName),'w');
+        fprintf(fid,'%3d %3.6f\n',[theWavelengths,newReflectance]');
+        fclose(fid);
     end
-    reflectanceName = sprintf('luminance-%.4f-reflectance-%03d.spd', theLuminanceTarget, ...
-                reflectanceNumbers(m));
-    fid = fopen(fullfile(folderToStore,reflectanceName),'w');
-    fprintf(fid,'%3d %3.6f\n',[theWavelengths,newReflectance]');
-    fclose(fid);
-end
     if (m==numel(reflectanceNumbers)) m=0; end
 end
 
 end
+
+
+
+
+
+
+
+
+
+
+
+
+

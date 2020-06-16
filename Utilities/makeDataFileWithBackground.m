@@ -1,8 +1,8 @@
-function makeDataFile(luminanceLevels, nSamples, folderToStore, fileName)
-% makeTargetReflectance(luminanceLevels, nSamples, , )
+function makeDataFileWithBackground(luminanceLevels, nSamples, nBackGroundSamples, folderToStore, fileName)
+% makeDataFileWithBackground([0.1:0.1:0.9], 1000, 5, pwd, 'test.csv')
 %
 % Usage: 
-%     makeTargetReflectance([0.2 0.6], 100)
+%     makeDataFileWithBackground([0.1:0.1:0.9], 1000, 5, pwd, 'test.csv')
 %
 % Description:
 %    This function makes the data file for deep learning. It 
@@ -24,7 +24,9 @@ function makeDataFile(luminanceLevels, nSamples, folderToStore, fileName)
 % Input:
 %   luminanceLevels = luminance levels for which the spectra are generated
 %   nSamples = number of samples at each luminance level
-%
+%   nBackGroundSamples = number of samples of background object reflectance
+%   folderToStore = folder to store
+%   fileName = file name
 %
 % 6/09/2020  vs, vs  Wrote it.
 
@@ -72,8 +74,6 @@ theIlluminant = SplineSpd(theIlluminantData.S_D65,theIlluminantData.spd_D65,theW
 theIlluminant = theIlluminant/(theLuminanceSensitivity(2,:)*theIlluminant);
 
 %% Generate new surfaces
-newIndex = 1;
-
 if ~exist(folderToStore)
     mkdir(folderToStore);
 end
@@ -88,17 +88,40 @@ for ii = 1:(size(luminanceLevels,2)*nSurfaceAtEachLuminace)
         ran_wgts = mvnrnd(mean_wgts',cov_wgts)';
         theReflectance = B*ran_wgts+sur_mean;
         theLightToEye = theIlluminant.*theReflectance;
-        theLuminance = theLuminanceSensitivity*theLightToEye;
+        theTargetXYZ = theLuminanceSensitivity*theLightToEye;
         theLuminanceTarget = luminanceLevels(ceil(ii/nSurfaceAtEachLuminace));
-        scaleFactor = theLuminanceTarget / theLuminance(2);
+        scaleFactor = theLuminanceTarget / theTargetXYZ(2);
         theReflectanceScaled = scaleFactor * theReflectance;
         if (all(theReflectanceScaled >= 0) & all(theReflectanceScaled <= 1))
             OK = true;
         end
         theLightToEye = theIlluminant.*theReflectanceScaled;
-        theLuminance = theLuminanceSensitivity*theLightToEye;
+        theTargetXYZ = theLuminanceSensitivity*theLightToEye;
     end
-	fprintf(fid,'%3.6f %3.6f %3.6f %3.6f\n',[theLuminance',ceil(ii/nSurfaceAtEachLuminace)]);
+    
+    % Make backgorund object reflectances    
+    newIndex = 1;
+    for jj = 1:nBackGroundSamples
+        OK = false;
+        while (~OK)
+            ran_wgts = mvnrnd(mean_wgts',cov_wgts)';
+            ran_sur = B*ran_wgts+sur_mean;
+            if (all(ran_sur >= 0) & all(ran_sur <= 1))
+                newSurfaces(:,newIndex) = ran_sur;
+                newIndex = newIndex+1;
+                OK = true;
+            end
+        end
+    end
+	theLightToEye = theIlluminant.*newSurfaces;
+    otherObjectXYZ = theLuminanceSensitivity*theLightToEye;
+
+    fprintf(fid,'%3.6f %3.6f %3.6f ',theTargetXYZ);
+    for jj = 1:nBackGroundSamples
+        fprintf(fid,'%3.6f %3.6f %3.6f ',otherObjectXYZ(:,jj)');
+    end
+    fprintf(fid,'%3.6f\n', ceil(ii/nSurfaceAtEachLuminace));
+    
     if (m==numel(nSamples)) m=0; end    
 end
 fclose(fid);
