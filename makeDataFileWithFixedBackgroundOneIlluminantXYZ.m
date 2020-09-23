@@ -1,8 +1,8 @@
-function makeDataFileWithBackgroundOneIlluminantXYZ(nSamples, nBackGroundSamples, folderToStore, fileName, varargin)
-% makeDataFileWithBackgroundOneIlluminant(luminanceLevels, nSamples, nBackGroundSamples, folderToStore, fileName, varargin)
+function makeDataFileWithFixedBackgroundOneIlluminantXYZ(nSamples, nBackGroundSamples, folderToStore, fileName, varargin)
+% makeDataFileWithFixedBackgroundOneIlluminantXYZ(luminanceLevels, nSamples, nBackGroundSamples, folderToStore, fileName, varargin)
 %
 % Usage:
-%     makeDataFileWithBackgroundOneIlluminant([0.1:0.1:0.9], 1000, 5, pwd, 'test.csv')
+%     makeDataFileWithFixedBackgroundOneIlluminantXYZ([0.1:0.1:0.9], 1000, 5, pwd, 'test.csv')
 %
 % Description:
 %    This function makes the data file for deep learning. It
@@ -130,6 +130,22 @@ if ~exist(folderToStore)
     mkdir(folderToStore);
 end
 
+% Make backgorund object reflectances
+newIndex = 1;
+for jj = 1:nBackGroundSamples
+    OK = false;
+    while (~OK)
+        ran_wgts = mvnrnd(mean_wgts',cov_wgts)';
+        ran_sur = B*ran_wgts+sur_mean;
+        if (all(ran_sur >= 0) & all(ran_sur <= 1))
+            newSurfaces(:,newIndex) = ran_sur;
+            newIndex = newIndex+1;
+            OK = true;
+        end
+    end
+end
+
+        
 fid = fopen(fullfile(folderToStore,fileName),'w');
 
 for ii = 1:size(XYZLevels,2)
@@ -147,22 +163,7 @@ for ii = 1:size(XYZLevels,2)
                 OK = true;
             end
         end
-        
-        % Make backgorund object reflectances
-        newIndex = 1;
-        for jj = 1:nBackGroundSamples
-            OK = false;
-            while (~OK)
-                ran_wgts = mvnrnd(mean_wgts',cov_wgts)';
-                ran_sur = B*ran_wgts+sur_mean;
-                if (all(ran_sur >= 0) & all(ran_sur <= 1))
-                    newSurfaces(:,newIndex) = ran_sur;
-                    newIndex = newIndex+1;
-                    OK = true;
-                end
-            end
-        end
-        
+                
         if bScaling
             scale = generateLogUniformScales(1, 0.001, 1);
         end

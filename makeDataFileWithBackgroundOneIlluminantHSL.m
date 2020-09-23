@@ -1,4 +1,4 @@
-function makeDataFileWithBackgroundOneIlluminantXYZ(nSamples, nBackGroundSamples, folderToStore, fileName, varargin)
+function makeDataFileWithBackgroundOneIlluminantHSL(nSamples, nBackGroundSamples, folderToStore, fileName, varargin)
 % makeDataFileWithBackgroundOneIlluminant(luminanceLevels, nSamples, nBackGroundSamples, folderToStore, fileName, varargin)
 %
 % Usage:
@@ -32,14 +32,14 @@ function makeDataFileWithBackgroundOneIlluminantXYZ(nSamples, nBackGroundSamples
 
 
 parser = inputParser();
-parser.addParameter('XYZLevels', [0.1; 0.1; 0.1], @isnumeric);
+parser.addParameter('HSVLevels', [0.1; 0.1; 0.2], @isnumeric);
 parser.addParameter('covScaleFactor', 1, @isnumeric);
 parser.addParameter('bMeanD65', 1, @islogical);
 parser.addParameter('bFixedIlluminant', 1, @islogical);
 parser.addParameter('bScaling', 1, @islogical);
 
 parser.parse(varargin{:});
-XYZLevels = parser.Results.XYZLevels;
+HSVLevels = parser.Results.HSVLevels;
 covScaleFactor = parser.Results.covScaleFactor;
 bMeanD65 = parser.Results.bMeanD65;
 bFixedIlluminant = parser.Results.bFixedIlluminant;
@@ -106,7 +106,7 @@ nullSpace = null(theLuminanceSensitivity*diag(theIlluminant)*B);
 
 
 %% Make illuminants
-totalIlls = nSamples*size(XYZLevels,2);
+totalIlls = nSamples*size(HSVLevels,2);
 
 if bMeanD65
     newIlluminant = makeIlluminants(1, 1, 'covScaleFactor', covScaleFactor);
@@ -132,10 +132,12 @@ end
 
 fid = fopen(fullfile(folderToStore,fileName),'w');
 
-for ii = 1:size(XYZLevels,2)
+for ii = 1:size(HSVLevels,2)
+
+    XYZLevel = rgb2xyz(hsv2rgb(HSVLevels(:,ii)'))';
     m=0;    
     ww(:,ii) = (theLuminanceSensitivity*diag(theIlluminant)*B)\...
-        (XYZLevels(:,ii) - theLuminanceSensitivity*diag(theIlluminant)*sur_mean);
+        (XYZLevel - theLuminanceSensitivity*diag(theIlluminant)*sur_mean);
     
     while (m < nsurfacePerXYZ)
         m=m+1;
@@ -173,13 +175,11 @@ for ii = 1:size(XYZLevels,2)
         theLightToEye = (scale*newIlluminant(:,(ii-1)*nsurfacePerXYZ + m)).*newSurfaces;
         otherObjectXYZ = theLuminanceSensitivity*theLightToEye;
         
-        maxXYZ = 1; % max([theTargetXYZ(:);otherObjectXYZ(:)]);
-        
-        fprintf(fid,'%3.6f %3.6f %3.6f ',theTargetXYZ/maxXYZ);
+        fprintf(fid,'%3.6f %3.6f %3.6f ', theTargetXYZ);
         for jj = 1:nBackGroundSamples
-            fprintf(fid,'%3.6f %3.6f %3.6f ',otherObjectXYZ(:,jj)'/maxXYZ);
+            fprintf(fid,'%3.6f %3.6f %3.6f ', otherObjectXYZ(:,jj)');
         end
-        fprintf(fid,'%3.6f %3.6f %3.6f\n', XYZLevels(:,ii));
+        fprintf(fid,'%3.6f %3.6f %3.6f\n', HSVLevels(:,ii));
     end
 end
 fclose(fid);

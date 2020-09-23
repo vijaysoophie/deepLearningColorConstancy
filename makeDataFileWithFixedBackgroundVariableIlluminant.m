@@ -1,15 +1,15 @@
-function makeDataFileWithBackgroundOneIlluminantXYZ(nSamples, nBackGroundSamples, folderToStore, fileName, varargin)
-% makeDataFileWithBackgroundOneIlluminant(luminanceLevels, nSamples, nBackGroundSamples, folderToStore, fileName, varargin)
+function makeDataFileWithFixedBackgroundVariableIlluminant(nSamples, nBackGroundSamples, folderToStore, fileName, varargin)
+% makeDataFileWithFixedBackgroundVariableIlluminant(luminanceLevels, nSamples, nBackGroundSamples, folderToStore, fileName, varargin)
 %
 % Usage:
-%     makeDataFileWithBackgroundOneIlluminant([0.1:0.1:0.9], 1000, 5, pwd, 'test.csv')
+%     makeDataFileWithFixedBackgroundVariableIlluminant([0.1:0.1:0.9], 1000, 5, pwd, 'test.csv')
 %
 % Description:
-%    This function makes the data file for deep learning. It
+%    This function makes the data file for deep learning. It 
 %    generates random surfaces at fixed luminance levels and then stores
 %    the value of the XYZ and luminance levels in a data file.
 %
-%    The spectrum are generated using the nickerson and the
+%    The spectrum are generated using the nickerson and the 
 %    vrhel libraries. These libraries should be a part of
 %    RenderToolbox. To generate the spectra, we first find out the pricipal
 %    components of the spectra in the library. Then we choose the
@@ -18,7 +18,7 @@ function makeDataFileWithBackgroundOneIlluminantXYZ(nSamples, nBackGroundSamples
 %    variance of this distribution. These are then used along with a
 %    multinormal random distribution to generate new random spectra. The
 %    new spectra are scaled such that the luminance equals the desired
-%    luminance levels. Finally, we make sure that the reflectance spectra
+%    luminance levels. Finally, we make sure that the reflectance spectra 
 %    values are between 0 and 1 at all frequencies.
 %
 % Input:
@@ -32,14 +32,14 @@ function makeDataFileWithBackgroundOneIlluminantXYZ(nSamples, nBackGroundSamples
 
 
 parser = inputParser();
-parser.addParameter('XYZLevels', [0.1; 0.1; 0.1], @isnumeric);
+parser.addParameter('luminanceLevels', [0.1, 0.1, 1], @isnumeric);
 parser.addParameter('covScaleFactor', 1, @isnumeric);
 parser.addParameter('bMeanD65', 1, @islogical);
 parser.addParameter('bFixedIlluminant', 1, @islogical);
 parser.addParameter('bScaling', 1, @islogical);
 
 parser.parse(varargin{:});
-XYZLevels = parser.Results.XYZLevels;
+luminanceLevels = parser.Results.luminanceLevels;
 covScaleFactor = parser.Results.covScaleFactor;
 bMeanD65 = parser.Results.bMeanD65;
 bFixedIlluminant = parser.Results.bFixedIlluminant;
@@ -50,7 +50,7 @@ bScaling = parser.Results.bScaling;
 S = [400 5 61];
 theWavelengths = SToWls(S);
 
-nsurfacePerXYZ = nSamples;
+nSurfaceAtEachLuminace = nSamples;
 %% Load surfaces
 %
 % These are in the Psychtoolbox.
@@ -60,7 +60,7 @@ load sur_nickerson
 sur_nickerson = SplineSrf(S_nickerson,sur_nickerson,S);
 
 % Vhrel surfaces
-load sur_vrhel
+load sur_vrhel 
 sur_vrhel = SplineSrf(S_vrhel,sur_vrhel,S);
 
 % Put them together
@@ -84,7 +84,7 @@ theLuminanceSensitivity = SplineCmf(theXYZData.S_xyz1931,theXYZData.T_xyz1931,th
 % humanConeMosaic = coneMosaic;
 % SHumanConeMosaic = [humanConeMosaic.wave(1) diff(humanConeMosaic.wave(1:2)) length(humanConeMosaic.wave)];
 % theLuminanceSensitivity = SplineCmf(SHumanConeMosaic,humanConeMosaic.qe',theWavelengths);
-%
+% 
 % lensTransmittance = Lens().transmittance;
 % lensTransmittance = SplineCmf(SHumanConeMosaic,lensTransmittance',theWavelengths);
 % theLuminanceSensitivity = bsxfun(@times, theLuminanceSensitivity, lensTransmittance);
@@ -101,12 +101,8 @@ theIlluminantData = load('spd_D65');
 theIlluminant = SplineSpd(theIlluminantData.S_D65,theIlluminantData.spd_D65,theWavelengths);
 theIlluminant = theIlluminant/(theLuminanceSensitivity(2,:)*theIlluminant);
 
-%% Get the null space
-nullSpace = null(theLuminanceSensitivity*diag(theIlluminant)*B);
-
-
 %% Make illuminants
-totalIlls = nSamples*size(XYZLevels,2);
+totalIlls = nSamples*length(luminanceLevels);
 
 if bMeanD65
     newIlluminant = makeIlluminants(1, 1, 'covScaleFactor', covScaleFactor);
@@ -132,54 +128,59 @@ end
 
 fid = fopen(fullfile(folderToStore,fileName),'w');
 
-for ii = 1:size(XYZLevels,2)
-    m=0;    
-    ww(:,ii) = (theLuminanceSensitivity*diag(theIlluminant)*B)\...
-        (XYZLevels(:,ii) - theLuminanceSensitivity*diag(theIlluminant)*sur_mean);
-    
-    while (m < nsurfacePerXYZ)
-        m=m+1;
-        OK = false;
-        while (~OK)
-            newWeights = ww(:,ii) + nullSpace*(0.95*norm(ww(:,ii)))*rand(3,1);
-            theReflectanceScaled = B*newWeights+sur_mean;
-            if (all(theReflectanceScaled >= 0) & all(theReflectanceScaled <= 1))
-                OK = true;
-            end
+
+% Make backgorund object reflectances
+newIndex = 1;
+for jj = 1:nBackGroundSamples
+    OK = false;
+    while (~OK)
+        ran_wgts = mvnrnd(mean_wgts',cov_wgts)';
+        ran_sur = B*ran_wgts+sur_mean;
+        if (all(ran_sur >= 0) & all(ran_sur <= 1))
+            newSurfaces(:,newIndex) = ran_sur;
+            newIndex = newIndex+1;
+            OK = true;
         end
-        
-        % Make backgorund object reflectances
-        newIndex = 1;
-        for jj = 1:nBackGroundSamples
-            OK = false;
-            while (~OK)
-                ran_wgts = mvnrnd(mean_wgts',cov_wgts)';
-                ran_sur = B*ran_wgts+sur_mean;
-                if (all(ran_sur >= 0) & all(ran_sur <= 1))
-                    newSurfaces(:,newIndex) = ran_sur;
-                    newIndex = newIndex+1;
-                    OK = true;
-                end
-            end
-        end
-        
-        if bScaling
-            scale = generateLogUniformScales(1, 0.001, 1);
-        end
-        
-        theLightToEye = (scale*newIlluminant(:,(ii-1)*nsurfacePerXYZ + m)).*theReflectanceScaled;
-        theTargetXYZ = theLuminanceSensitivity*theLightToEye;
-        
-        theLightToEye = (scale*newIlluminant(:,(ii-1)*nsurfacePerXYZ + m)).*newSurfaces;
-        otherObjectXYZ = theLuminanceSensitivity*theLightToEye;
-        
-        maxXYZ = 1; % max([theTargetXYZ(:);otherObjectXYZ(:)]);
-        
-        fprintf(fid,'%3.6f %3.6f %3.6f ',theTargetXYZ/maxXYZ);
-        for jj = 1:nBackGroundSamples
-            fprintf(fid,'%3.6f %3.6f %3.6f ',otherObjectXYZ(:,jj)'/maxXYZ);
-        end
-        fprintf(fid,'%3.6f %3.6f %3.6f\n', XYZLevels(:,ii));
     end
+end
+
+
+
+m=0;
+for ii = 1:(size(luminanceLevels,2)*nSurfaceAtEachLuminace)
+
+    if bScaling
+        scale = generateLogUniformScales(1, 0.001, 0.1);
+    end
+
+    m=m+1;
+    OK = false;
+    while (~OK)
+        ran_wgts = mvnrnd(mean_wgts',cov_wgts)';
+        theReflectance = B*ran_wgts+sur_mean;
+        theLightToEye = theIlluminant.*theReflectance;
+        theTargetXYZ = theLuminanceSensitivity*theLightToEye;
+        theLuminanceTarget = luminanceLevels(ceil(ii/nSurfaceAtEachLuminace));
+        scaleFactor = theLuminanceTarget / theTargetXYZ(2);
+        theReflectanceScaled = scaleFactor * theReflectance;
+        if (all(theReflectanceScaled >= 0) & all(theReflectanceScaled <= 1))
+            OK = true;
+        end
+    end
+    
+           
+    theLightToEye = (scale*newIlluminant(:,ii)).*theReflectanceScaled;
+    theTargetXYZ = theLuminanceSensitivity*theLightToEye;
+
+	theLightToEye = (scale*newIlluminant(:,ii)).*newSurfaces;
+    otherObjectXYZ = theLuminanceSensitivity*theLightToEye;
+
+    fprintf(fid,'%3.6f %3.6f %3.6f ',theTargetXYZ);
+    for jj = 1:nBackGroundSamples
+        fprintf(fid,'%3.6f %3.6f %3.6f ',otherObjectXYZ(:,jj)');
+    end
+    fprintf(fid,'%3.6f\n', ceil(ii/nSurfaceAtEachLuminace));
+    
+    if (m==numel(nSamples)) m=0; end    
 end
 fclose(fid);
